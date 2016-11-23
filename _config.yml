@@ -1,2 +1,3 @@
 name: Stay hungry,Stay foolish
 markdown: kramdown
+permalink: /blog/:year/:month/:day/:title
