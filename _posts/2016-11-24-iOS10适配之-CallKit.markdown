@@ -151,7 +151,7 @@ Transaction可以通过三种方法添加Action:
 CXAction是CXCallAction的基类，常见的CXCallAction有:
 
 |CXCallAction Subclass | Description|
-|---|:---:|
+| :-------- | :--------|
 |CXAnswerCallAction | Answers an incoming call|
 |CXStartCallAction | Initiates an outgoing call|
 |CXEndCallAction | Ends a call|
