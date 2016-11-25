@@ -1,0 +1,258 @@
+---
+title:  "iOS10适配之 CallKit"
+date:   2016-11-24 10:24:23
+categories: [iOS]
+tags: [iOS]
+---
+iOS 10来了，iOS程序员们又有的忙了。
+
+公司产品的核心功能是VoIP语/视频通话，为了与时俱进，就要适配iOS最新的CallKit。关于CallKit的介绍我就不详述了，大家可以去看看[iOS开发文档](https://developer.apple.com/reference/callkit)、[WWDC](https://developer.apple.com/videos/play/wwdc2016/230/)或者直接Google。
+
+总的来说，CallKit有三大优势：
+
+>1.提供系统通话界面,这一点在锁屏时体验最明显。
+2.VoIP通话权限提升到系统级别，即不是随便被系统电话打断，而是可以选择拒接。
+3.支持系统通讯记录沉淀与唤起。
+
+从这三点“升级”可以看出苹果是非常看中VoIP的市场，现在我们可以像打系统电话一样使用VoIP了。
+
+那么，我就开门见山的介绍一些API的使用吧。
+
+### CXProvider ###
+
+>The CXProvider class provides a programmatic interface to an object that represents a telephony provider. A CXProvider object is responsible for reporting out-of-band notifications that occur to the system.
+
+
+我们首先要初始化一个单例的provider。其方法是
+
+``` objective_c 
+- (instancetype)initWithConfiguration:(CXProviderConfiguration *)configuration
+```
+ 
+这里的CXProviderConfiguration很重要，很多我们显式看到的信息都是在这里面配置好的。
+
+``` objective_c 
+@interface CXProviderConfiguration : NSObject <NSCopying>
+
+//系统来电页面显示的app名称和系统通讯记录的信息
+@property (nonatomic, readonly, copy) NSString *localizedName; 
+
+//来电铃声
+@property (nonatomic, strong, nullable) NSString *ringtoneSound;
+
+//锁屏接听时，系统界面右下角的app图标，要求40 x 40大小
+@property (nonatomic, copy, nullable) NSData *iconTemplateImageData; 
+
+//最大通话组
+@property (nonatomic) NSUInteger maximumCallGroups; // Default 2
+
+//是否支持视频
+@property (nonatomic) BOOL supportsVideo; // Default NO
+
+//支持的Handle类型
+@property (nonatomic, copy) NSSet<NSNumber *> *supportedHandleTypes;
+
+@end
+```
+
+我们初始化provider之后还要设置它代理，以便执行CXProviderDelegate的方法。其方法是:
+
+``` objective_c 
+- (void)setDelegate:(nullable id<CXProviderDelegate>)delegate queue:(nullable dispatch_queue_t)queue;
+```
+queue一般直接指定为nil，即在main线程执行callback。
+
+完成初始化之后，provider 就可以为我们服务了，这时候来了一个VoIP电话，那么它应该报告系统，好让系统按照它的配置弹出一个系统来电界面。其方法是：
+
+``` objective_c 
+- (void)reportNewIncomingCallWithUUID:(NSUUID *)UUID update:(CXCallUpdate *)update completion:(void (^)(NSError *_Nullable error))completion;
+
+```
+
+其中UUID是每次随机生成的，标记一次通话；CXCallUpdate有点类似CXConfiguration,也是一些配置信息。
+
+``` objective_c 
+@interface CXCallUpdate : NSObject <NSCopying>
+
+//通话对方的Handle 信息
+@property (nonatomic, copy, nullable) CXHandle *remoteHandle;
+
+//对方的名字，可以设置为app注册的昵称
+@property (nonatomic, copy, nullable) NSString *localizedCallerName;
+
+//通话过程中再来电，是否支持保留并接听
+@property (nonatomic) BOOL supportsHolding;
+
+//是否支持键盘拨号
+@property (nonatomic) BOOL supportsDTMF;
+
+//本次通话是否有视频
+@property (nonatomic) BOOL hasVideo;
+
+@end
+
+```
+
+这些配置信息会影响锁屏时的接听界面上的按钮状态以及多个通话的选择界面。如果执行成功，completion中的error为nil, 否则，不会弹出系统界面。
+
+由于非本地人为(文章最后解释)的因素导致的通话结束，需要报告系统通话结束的时间和原因。其方法是：
+
+``` objective_c 
+- (void)reportCallWithUUID:(NSUUID *)UUID endedAtDate:(nullable NSDate *)dateEnded reason:(CXCallEndedReason)endedReason;
+```
+如果dateEnded为nil,则认为结束时间是现在。
+
+我们还可以动态更改provider的配置信息CXCallUpdate,比如作为拨打方，开始没有地方配置通话的界面，就可以在通话开始时更新这些配置信息。 其方法是：
+
+``` objective_c 
+- (void)reportCallWithUUID:(NSUUID *)UUID updated:(CXCallUpdate *)update;
+```
+
+作为拨打方，我们还可以报告通话的状态，以便让系统知道我们app的VoIP真正的通话开始时间。
+
+通话连接时:
+
+``` objective_c 
+- (void)reportOutgoingCallWithUUID:(NSUUID *)UUID startedConnectingAtDate:(nullable NSDate *)dateStartedConnecting;
+```
+
+通话连接上:
+
+``` objective_c 
+- (void)reportOutgoingCallWithUUID:(NSUUID *)UUID connectedAtDate:(nullable NSDate *)dateConnected;
+```
+
+### CXCallController ###
+
+>The CXCallController class provides the programmatic interface for interacting with and observing calls.
+
+初始化:
+
+``` objective_c 
+- (instancetype)initWithQueue:(dispatch_queue_t)queue
+```
+queue也是指定执行callback的线程，默认是main线程。
+
+在开始或结束一次通话时，需要提交action事务请求,这些事务会交给上面的provider执行。
+
+``` objective_c 
+- (instancetype)initWithQueue:(dispatch_queue_t)queue
+- (void)requestTransaction:(CXTransaction *)transaction completion:(void (^)(NSError *_Nullable error))completion;
+```
+
+Transaction可以通过三种方法添加Action:
+
+``` objective_c 
+- (instancetype)initWithActions:(NSArray<CXAction *> *)actions
+- (instancetype)initWithAction:(CXAction *)action;
+- (void)addAction:(CXAction *)action;
+```
+
+CXAction是CXCallAction的基类，常见的CXCallAction有:
+
+|CXCallAction Subclass | Description|
+|---|:---:|
+|CXAnswerCallAction | Answers an incoming call|
+|CXStartCallAction | Initiates an outgoing call|
+|CXEndCallAction | Ends a call|
+|CXSetHeldCallAction | Places a call on hold or removes a call from hold|
+|CXSetGroupCallAction | Groups a call with another call or removes a call from a group.|
+|CXSetMutedCallAction | Mutes or unmutes a call|
+|CXPlayDTMFCallAction | Plays a DTMF (dual tone multi frequency) tone sequence on a call|
+
+
+### CXProviderDelegate ###
+
+>The CXProviderDelegate protocol defines methods that are called by a CXProvider object when a provider begins or reset, when a transaction is requested, when an action is performed, and when an audio session changes its activation state.
+
+当拨打方成功发起一个通话后，会触发
+
+``` objective_c 
+- (void)provider:(CXProvider *)provider performStartCallAction:(CXStartCallAction *)action;
+```
+当接听方成功接听一个电话时，会触发
+
+``` objective_c 
+- (void)provider:(CXProvider *)provider performAnswerCallAction:(CXAnswerCallAction *)action;
+```
+当接听方拒接电话或者双方结束通话时，会触发
+
+``` objective_c 
+- (void)provider:(CXProvider *)provider performEndCallAction:(CXEndCallAction *)action;
+```
+当点击系统通话界面的Mute按钮时，会触发
+ 
+``` objective_c 
+- (void)provider:(CXProvider *)provider performSetMutedCallAction:(CXSetMutedCallAction *)action;
+```
+
+### 流程图 ###
+一个简单经典的CallKit 通话流程如下图:
+![CallKit经典通话流程](http://upload-images.jianshu.io/upload_images/1136939-460b6e3bac888ea0.png?imageMogr2/auto-orient/strip%7CimageView2/2/w/1240)
+
+
+### 坑 ###
+苹果官方现在还没有给出Callkit的完整文档，所以都是自己摸索，难免有很多坑。
+
+* 无声
+    
+  刚开始做的时候，会偶然碰到无声的情况，这个时候发现可以在VoIP通话成功后直接结束系统的通话界面就有声音了。然后就这么很傻叉地做了，而且发现imo一开始也是这么做的。不过，这样肯定会带来问题，最简单的就是系统通话纪录的时长显示不对，因为它是按照callkit上报的开始和结束时间算的，这样毫无理由地结束当然显示错误。QQ最先写了[一篇文章](http://www.jianshu.com/p/d3d82f62ffaa)，讲到无声的处理方法是
+>在流程开始前setCategory为PlayAndRecord 
+
+  突然发现自己的代码里也写了这句话，由于以前的代码逻辑就会处理这种音频问题，所以怀疑是冲突了，反正现在不是很懂，感觉小复杂，去掉就可以了。
+
+* 如何在系统通讯录中增加选项
+
+  既然可以沉淀到系统通话纪录中，就应该可以在通话纪录中直接呼出。那么长按系统通讯录中的“呼叫”如何显示我们自己的app名称呢？就像图中的Whatsup和SpeakerBox一样。
+![通话选项](http://upload-images.jianshu.io/upload_images/1136939-115780e8168f0291.png?imageMogr2/auto-orient/strip%7CimageView2/2/w/1240)
+其实这依赖于CXProviderConfiguration的一个配置项：
+
+  ``` objective_c 
+configuration.supportedHandleTypes = [NSSet setWithObject:@(CXHandleTypePhoneNumber)];
+```
+  为了支持安装app就生效，可以在AppDelegate.m的didFinishLaunchingWithOptions方法中去做这个配置。
+
+* 如何从系统通讯中直接呼出 
+
+  上面解决了选项问题，那么为什么点击了app的名字没有任何反应呢？
+  这需要在AppDelegate.m的continueUserActivity方法中响应。
+
+  ``` objective_c 
+INInteraction *interaction = userActivity.interaction;
+INIntent *intent = interaction.intent;
+if ([userActivity.activityType isEqualToString:@"INStartAudioCallIntent"])
+{
+    INPerson *person = [(INStartAudioCallIntent *)intent contacts][0];
+    CXHandle *handle = [[CXHandle alloc] initWithType:(CXHandleType)person.personHandle.type value:person.personHandle.value];
+    [[CallKitManager sharedInstance] startCallAction:handle isVideo:NO];
+    return YES;
+} else if([userActivity.activityType isEqualToString:@"INStartVideoCallIntent"]) {
+    INPerson *person = [(INStartVideoCallIntent *)intent contacts][0];
+    CXHandle *handle = [[CXHandle alloc] initWithType:(CXHandleType)person.personHandle.type value:person.personHandle.value];
+    [[CallKitManager sharedInstance] startCallAction:handle isVideo:YES];
+    return YES;
+}
+```
+
+  另外，在reportNewIncomingCallWithUUID:update:completion:时要指定remoteHandle为对方的Handle。
+
+* 何种方式结束
+
+  上面的介绍，我们知道结束通话可以有两种方法：
+
+  ``` objective_c 
+//1
+reportCallWithUUID:(NSUUID *)UUID endedAtDate:(nullable NSDate *)dateEnded reason:(CXCallEndedReason)endedReason;
+//2
+requestTransaction:CXEndCallAction
+```
+
+  那么它们有什么区别，该选择哪个呢？
+
+  这个问题我在[stackoverflow](http://stackoverflow.com/questions/40395260/callkit-when-to-use-reportcallwithuuidendedatdatereason/40396571?noredirect=1#comment68085567_40396571)上提问了，答案我觉得很清楚，在此感谢这位[@user102008](http://stackoverflow.com/users/102008/user102008)解惑！
+
+  >You do requestTransactionwith a CXEndCallAction when the user actively chooses to end the call from your app's UI. You do 
+reportCallWithUUID:endedAtDate:reason:
+when it ended not due to user action (i.e. not due to 
+provider:performEndCallAction:). If you take a look at the allowed 
+CXCallEndedReasons (failed, remote ended, unanswered, answered elsewhere, and declined elsewhere), they are all reasons not due to the user's action.
