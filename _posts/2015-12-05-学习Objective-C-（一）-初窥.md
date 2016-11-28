@@ -3,7 +3,7 @@ title:  "学习Objective-C-（一）-初窥"
 date:   2015-12-05 21:24:23
 categories: [iOS]
 tags: [iOS]
-commments: true
+comments: true
 ---
 ![objective-c](http://upload-images.jianshu.io/upload_images/1136939-2cc1acf1a97ed073.png?imageMogr2/auto-orient/strip%7CimageView2/2/w/1240)
 
