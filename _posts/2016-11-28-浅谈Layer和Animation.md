@@ -12,7 +12,7 @@ iOS中的动画默认是指`Core Animation`，当然还有第三方的比如Face
 
 在iOS中，每一个`UIView`背后都有一个`Layer`，这个我们可以通过`view.layer`获得。而`View`是`Layer`的`delegate`。这个`delegate`是这样定义的：
 
-``` obbjective_c
+``` objective_c
 @interface NSObject (CALayerDelegate)
 ...
 
@@ -40,7 +40,7 @@ iOS中的动画默认是指`Core Animation`，当然还有第三方的比如Face
 
 **A:** 改变一个非Root Layer的可做动画属性(Animatable Property)时，属性值从起点到终点有一个平滑过渡的过程，既`隐式动画`，默认时长是0.25秒。而改变一个Root Layer的可做动画属性时，是直接改变的，没有动画的。我们可以用下面的代码演示改变两种layer的颜色。
 
-``` objctive_c
+``` objective_c
 - (void)changeColor {
     [CATransaction begin];
     //为了方便观察，将时长改为2秒
@@ -200,7 +200,7 @@ animation.removedOnCompletion = NO;
 
 特别指出，这里的`speed`为0代表动画暂停，与`timeOffset`一起可以暂停/恢复 动画。
  
-``` objctive_c
+``` objective_c
 - (void)pauseAnimation:(CALayer *)layer {
     CFTimeInterval pauseTime = [layer convertTime:CACurrentMediaTime() fromLayer:nil];
     layer.speed = 0;
