@@ -1,6 +1,6 @@
 ---
-title:  "学习Objective-C-（一）-初窥"
-date:   2015-12-05 21:24:23
+title:  "浅谈Layer和Animation"
+date:   2016-11-28 11:15:23
 categories: [iOS]
 tags: [iOS]
 ---
