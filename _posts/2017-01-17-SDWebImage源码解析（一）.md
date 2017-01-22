@@ -347,7 +347,7 @@ dispatch_main_sync_safe(^{
 
 **如果没有在缓存找到图片，且不允许下载，**直接调用completedBlock，第一个参数为nil。
 
-```
+``` objective_c
 dispatch_main_sync_safe(^{
     __strong __typeof(weakOperation) strongOperation = weakOperation;
     if (strongOperation && !weakOperation.isCancelled) {//为啥这里用weakOperation TODO
@@ -366,7 +366,7 @@ dispatch_main_sync_safe(^{
 
 这里再说一下上面的operation，是一个`SDWebImageCombinedOperation `实例:
 
- ``` objective_c
+``` objective_c
 @interface SDWebImageCombinedOperation : NSObject <SDWebImageOperation>
 
 @property (assign, nonatomic, getter = isCancelled) BOOL cancelled;
@@ -377,7 +377,7 @@ dispatch_main_sync_safe(^{
 ```
 是一个遵循`SDWebImageOperation`协议的NSObject子类。
 
-``` objective_C
+``` objective_c
 @protocol SDWebImageOperation <NSObject>
 
 - (void)cancel;
