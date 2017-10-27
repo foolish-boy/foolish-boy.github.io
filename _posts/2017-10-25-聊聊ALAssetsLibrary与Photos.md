@@ -6,7 +6,6 @@ tags: [iOS]
 comments: true
 ---
 
-# 聊聊ALAssetsLibrary 与 Photos 
 
 `ALAssetsLibrary`和`Photos`都是Apple提供访问系统相册资源的两个标准库，前者在iOS9之后已经被弃用，后者在iOS8上开始支持。可想而知，`Photos`库提供了更全面更友好的接口。
 
