@@ -1,6 +1,6 @@
 ---
-title:  "学习Objective-C-（一）-初窥"
-date:   2015-12-05 21:24:23
+title:  "聊聊ALAssetsLibrary 与 Photos" 
+date:   2017-10-25 10:24:23
 categories: [iOS]
 tags: [iOS]
 comments: true
